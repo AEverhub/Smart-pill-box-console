@@ -1,6 +1,4 @@
 <!DOCTYPE html>
-//版本7.1
-
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
@@ -20,6 +18,7 @@
 
     .container { padding: 15px; max-width: 800px; margin: 0 auto; }
     .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .card-highlight { border: 2px solid #007bff; }
     h2, h3 { margin-top: 0; color: #007bff; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
     
     .switch-container { display: flex; align-items: center; justify-content: space-between; }
@@ -81,6 +80,12 @@
 
     <div id="page-home" class="section-page active-page">
       
+      <div class="card card-highlight">
+        <h3>裝置連線狀態</h3>
+        <p style="margin: 5px 0 10px 0;">連線狀態：<span id="bleStatus" style="color:red; font-weight:bold;">未連線</span></p>
+        <button id="btnConnect" onclick="connectBLE()" style="width: 100%;">連結藍芽裝置</button>
+      </div>
+
       <div class="card">
         <div class="switch-container">
           <span style="font-weight: bold; font-size: 15px;">設備啟用狀態</span>
@@ -94,13 +99,9 @@
 
       <div class="card">
         <h3>水杯控制</h3>
-        <div class="form-group">
-          <label>控制密碼</label>
-          <input type="password" id="passCode" placeholder="請輸入密碼">
-        </div>
         <div style="display: flex; gap: 10px;">
-          <button onclick="controlCup('OPEN')" style="flex: 1;">開啟水杯 (MT1)</button>
-          <button onclick="controlCup('CLOSE')" class="btn-danger" style="flex: 1;">關閉水杯 (MT1)</button>
+          <button onclick="controlCup('LOCK')" style="flex: 1;">水杯上鎖 (MT1)</button>
+          <button onclick="controlCup('UNLOCK')" class="btn-danger" style="flex: 1;">水杯解鎖 (MT1)</button>
         </div>
       </div>
 
@@ -129,11 +130,6 @@
         </div>
       </div>
 
-      <div class="card">
-        <h3>裝置連線狀態</h3>
-        <p>連線狀態：<span id="bleStatus" style="color:red; font-weight:bold;">未連線</span></p>
-        <button id="btnConnect" onclick="connectBLE()">連結藍芽裝置</button>
-      </div>
     </div>
 
     <div id="page-profile-edit" class="section-page">
@@ -379,6 +375,7 @@
       renderSlots();
       renderAlarmInputs();
       renderCalendar();
+      autoConnectBLE();
     };
 
     let bleDevice, gattServer, rxCharacteristic, txCharacteristic;
@@ -386,29 +383,58 @@
     const RX_UUID      = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
     const TX_UUID      = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
 
+    async function setupGATT(device) {
+      bleDevice = device;
+      bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+      gattServer = await bleDevice.gatt.connect();
+      const service = await gattServer.getService(SERVICE_UUID);
+      rxCharacteristic = await service.getCharacteristic(RX_UUID);
+      txCharacteristic = await service.getCharacteristic(TX_UUID);
+
+      await txCharacteristic.startNotifications();
+      txCharacteristic.addEventListener('characteristicvaluechanged', handleBLEData);
+
+      document.getElementById('bleStatus').innerText = "已連線";
+      document.getElementById('bleStatus').style.color = "green";
+      localStorage.setItem('auto_connect_ble', 'true');
+    }
+
     async function connectBLE() {
       try {
         document.getElementById('bleStatus').innerText = "搜尋中...";
-        bleDevice = await navigator.bluetooth.requestDevice({
+        const device = await navigator.bluetooth.requestDevice({
           filters: [{ name: 'Smart pill box智慧藥盒' }],
           optionalServices: [SERVICE_UUID]
         });
-
-        gattServer = await bleDevice.gatt.connect();
-        const service = await gattServer.getService(SERVICE_UUID);
-        rxCharacteristic = await service.getCharacteristic(RX_UUID);
-        txCharacteristic = await service.getCharacteristic(TX_UUID);
-
-        await txCharacteristic.startNotifications();
-        txCharacteristic.addEventListener('characteristicvaluechanged', handleBLEData);
-
-        document.getElementById('bleStatus').innerText = "已連線";
-        document.getElementById('bleStatus').style.color = "green";
+        await setupGATT(device);
       } catch (err) {
         console.error(err);
         document.getElementById('bleStatus').innerText = "連線失敗";
         document.getElementById('bleStatus').style.color = "red";
       }
+    }
+
+    async function autoConnectBLE() {
+      if (localStorage.getItem('auto_connect_ble') === 'true' && navigator.bluetooth.getDevices) {
+        try {
+          const devices = await navigator.bluetooth.getDevices();
+          const targetDevice = devices.find(d => d.name === 'Smart pill box智慧藥盒');
+          if (targetDevice) {
+            document.getElementById('bleStatus').innerText = "自動連線中...";
+            await setupGATT(targetDevice);
+          }
+        } catch (err) {
+          console.error("自動連線失敗:", err);
+          document.getElementById('bleStatus').innerText = "未連線";
+          document.getElementById('bleStatus').style.color = "red";
+        }
+      }
+    }
+
+    function onDisconnected() {
+      document.getElementById('bleStatus').innerText = "已斷線";
+      document.getElementById('bleStatus').style.color = "red";
     }
 
     function sendData(str) {
@@ -436,10 +462,8 @@
     }
 
     function controlCup(action) {
-      const pwd = document.getElementById('passCode').value;
-      if (!pwd) return alert("請輸入水杯控制密碼");
-      sendData(`CUP_CTRL:${action}:${pwd}`);
-      alert(`已發送水杯${action === 'OPEN' ? '開啟' : '關閉'}指令`);
+      sendData(`CUP_CTRL:${action}`);
+      alert(`已發送水杯${action === 'LOCK' ? '上鎖' : '解鎖'}指令`);
     }
 
     function handleBLEData(event) {
