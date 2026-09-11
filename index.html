@@ -199,20 +199,51 @@
     let isDeviceEnabled = false;
     let pillSlots = [true, true, true, true, true, true, true, true, true];
     let completedDates = [];
+    let logsArr = [];
+
+    function loadSavedSettings() {
+      const savedEnable = localStorage.getItem('device_enabled');
+      if (savedEnable !== null) {
+        isDeviceEnabled = (savedEnable === 'true');
+        const checkbox = document.getElementById('deviceEnableSwitch');
+        checkbox.checked = isDeviceEnabled;
+        updateDeviceStatusUI();
+      }
+
+      const savedDates = localStorage.getItem('completed_dates');
+      if (savedDates) {
+        completedDates = JSON.parse(savedDates);
+      }
+
+      const savedLogs = localStorage.getItem('system_logs');
+      if (savedLogs) {
+        logsArr = JSON.parse(savedLogs);
+        renderLogs();
+      }
+    }
 
     function toggleDeviceState() {
       const checkbox = document.getElementById('deviceEnableSwitch');
       isDeviceEnabled = checkbox.checked;
-      const statusText = document.getElementById('deviceStatusText');
+      localStorage.setItem('device_enabled', isDeviceEnabled);
       
+      updateDeviceStatusUI();
+
+      if (isDeviceEnabled) {
+        sendData("DEV_ENABLE:1");
+      } else {
+        sendData("DEV_ENABLE:0");
+      }
+    }
+
+    function updateDeviceStatusUI() {
+      const statusText = document.getElementById('deviceStatusText');
       if (isDeviceEnabled) {
         statusText.innerText = "目前狀態：設備已開啟啟用";
         statusText.style.color = "#28a745";
-        sendData("DEV_ENABLE:1");
       } else {
         statusText.innerText = "目前狀態：未開啟使用";
         statusText.style.color = "#666";
-        sendData("DEV_ENABLE:0");
       }
     }
 
@@ -233,16 +264,38 @@
       alarmGrid.innerHTML = '';
       
       const defaultTimes = ["08:00", "09:00", "12:00", "13:00", "17:00", "18:00", "20:00", "21:00", "22:00"];
+      const savedTimes = JSON.parse(localStorage.getItem('alarm_times') || 'null');
 
       for (let i = 1; i <= 9; i++) {
+        const val = (savedTimes && savedTimes[i - 1]) ? savedTimes[i - 1] : defaultTimes[i - 1];
         const div = document.createElement('div');
         div.className = 'form-group';
         div.innerHTML = `
           <label>${i}號藥格 時間</label>
-          <input type="time" id="alarmTime_${i}" value="${defaultTimes[i-1]}">
+          <input type="time" id="alarmTime_${i}" value="${val}">
         `;
         alarmGrid.appendChild(div);
       }
+    }
+
+    function setAlarms() {
+      if (!isDeviceEnabled) {
+        alert("提示：請先在首頁開啟「設備啟用狀態」開關後再設定提醒時間！");
+        showPage('page-home');
+        return;
+      }
+
+      let timesArr = [];
+      for (let i = 1; i <= 9; i++) {
+        const timeVal = document.getElementById(`alarmTime_${i}`).value;
+        timesArr.push(timeVal);
+      }
+
+      localStorage.setItem('alarm_times', JSON.stringify(timesArr));
+
+      const payload = "SET_ALARMS:" + timesArr.join(",");
+      sendData(payload);
+      alert("已成功發送 9 組藥格提醒時間至藥盒，並將設定儲存於本地！");
     }
 
     function renderCalendar() {
@@ -371,6 +424,7 @@
     }
 
     window.onload = function() {
+      loadSavedSettings();
       loadProfile();
       renderSlots();
       renderAlarmInputs();
@@ -443,24 +497,6 @@
       rxCharacteristic.writeValue(encoder.encode(str + "\n"));
     }
 
-    function setAlarms() {
-      if (!isDeviceEnabled) {
-        alert("提示：請先在首頁開啟「設備啟用狀態」開關後再設定提醒時間！");
-        showPage('page-home');
-        return;
-      }
-
-      let timesArr = [];
-      for (let i = 1; i <= 9; i++) {
-        const timeVal = document.getElementById(`alarmTime_${i}`).value;
-        timesArr.push(timeVal);
-      }
-
-      const payload = "SET_ALARMS:" + timesArr.join(",");
-      sendData(payload);
-      alert("已成功發送 9 組藥格提醒時間至藥盒！");
-    }
-
     function controlCup(action) {
       sendData(`CUP_CTRL:${action}`);
       alert(`已發送水杯${action === 'LOCK' ? '上鎖' : '解鎖'}指令`);
@@ -482,6 +518,7 @@
         const todayStr = new Date().toISOString().split('T')[0];
         if (!completedDates.includes(todayStr)) {
           completedDates.push(todayStr);
+          localStorage.setItem('completed_dates', JSON.stringify(completedDates));
           renderCalendar();
         }
       } 
@@ -494,13 +531,26 @@
     }
 
     function addLog(text, isAlert) {
-      const logList = document.getElementById('logList');
-      if (logList.innerText === "暫無紀錄") logList.innerHTML = "";
-      const div = document.createElement('div');
-      div.className = 'log-item' + (isAlert ? ' log-alert' : '');
       const now = new Date().toLocaleString();
-      div.innerText = `[${now}] ${text}`;
-      logList.insertBefore(div, logList.firstChild);
+      const logObj = { time: now, text: text, isAlert: isAlert };
+      logsArr.unshift(logObj);
+      localStorage.setItem('system_logs', JSON.stringify(logsArr));
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const logList = document.getElementById('logList');
+      if (logsArr.length === 0) {
+        logList.innerText = "暫無紀錄";
+        return;
+      }
+      logList.innerHTML = "";
+      logsArr.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'log-item' + (item.isAlert ? ' log-alert' : '');
+        div.innerText = `[${item.time}] ${item.text}`;
+        logList.appendChild(div);
+      });
     }
   </script>
 </body>
