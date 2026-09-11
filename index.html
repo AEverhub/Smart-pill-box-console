@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Pill Box 智慧藥盒控制台</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; background: #f4f6f9; color: #333; margin: 0; }
+    
+    /* 頂部導覽列與選單 */
+    .header { display: flex; justify-content: space-between; align-items: center; background: #007bff; color: white; padding: 10px 20px; }
+    .header h1 { font-size: 18px; margin: 0; }
+    .dropdown { position: relative; display: inline-block; }
+    .dropbtn { background-color: #0056b3; color: white; padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+    .dropdown-content { display: none; position: absolute; right: 0; background-color: #ffffff; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 10; border-radius: 4px; overflow: hidden; }
+    .dropdown-content a { color: black; padding: 12px 16px; text-decoration: none; display: block; font-size: 14px; }
+    .dropdown-content a:hover { background-color: #f1f1f1; }
+    .show { display: block; }
+
+    /* 主要容器 */
+    .container { padding: 15px; max-width: 800px; margin: 0 auto; }
+    .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    h2, h3 { margin-top: 0; color: #007bff; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+    
+    /* 滑動開關 (Toggle Switch) */
+    .switch-container { display: flex; align-items: center; justify-content: space-between; }
+    .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 26px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #28a745; }
+    input:checked + .slider:before { transform: translateX(24px); }
+
+    /* 9 個藥格矩陣 (3x3) */
+    .slots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+    .slot-item { border-radius: 6px; padding: 15px 5px; text-align: center; color: white; font-weight: bold; font-size: 13px; }
+    .slot-green { background-color: #28a745; } /* 綠色：待投藥 */
+    .slot-red { background-color: #dc3545; }   /* 紅色：已投藥 */
+
+    /* 本月日曆 */
+    .calendar-header { text-align: center; font-weight: bold; margin-bottom: 10px; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 12px; }
+    .day-name { font-weight: bold; background: #e9ecef; padding: 5px 0; border-radius: 3px; }
+    .day-cell { padding: 8px 2px; border: 1px solid #eee; border-radius: 4px; min-height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .today { border: 2px solid #007bff; font-weight: bold; }
+    .thumbs-up { color: #28a745; font-size: 14px; margin-top: 2px; }
+
+    /* 表單與個人資料 */
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 14px; margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    button { padding: 10px 15px; border: none; border-radius: 4px; background: #007bff; color: white; font-size: 14px; cursor: pointer; margin-top: 5px; }
+    button:hover { background: #0056b3; }
+    
+    .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
+    .profile-item { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; }
+    .profile-label { color: #666; font-size: 12px; }
+
+    .log-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 13px; }
+    .log-alert { color: #dc3545; font-weight: bold; }
+    .section-page { display: none; }
+    .active-page { display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- 頂部導覽列 -->
+  <div class="header">
+    <h1>智慧藥盒管理系統</h1>
+    <div class="dropdown">
+      <button class="dropbtn" onclick="toggleMenu()">MENU 下拉選單</button>
+      <div id="myDropdown" class="dropdown-content">
+        <a href="#" onclick="showPage('page-home')">首頁控制台</a>
+        <a href="#" onclick="showPage('page-profile-edit')">修改個人資料</a>
+        <a href="#" onclick="showPage('page-alarm')">設定用藥提醒</a>
+        <a href="#" onclick="showPage('page-cup')">水杯開關控制</a>
+        <a href="#" onclick="showPage('page-logs')">歷史用藥紀錄</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- 1. 首頁 -->
+    <div id="page-home" class="section-page active-page">
+      
+      <!-- 設備啟用狀態開關 -->
+      <div class="card">
+        <div class="switch-container">
+          <span style="font-weight: bold; font-size: 15px;">設備啟用狀態</span>
+          <label class="switch">
+            <input type="checkbox" id="deviceEnableSwitch" onchange="toggleDeviceState()">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p id="deviceStatusText" style="margin: 8px 0 0 0; font-size: 13px; color: #666;">目前狀態：未開啟使用</p>
+      </div>
+
+      <!-- 9格藥格狀態 (編號 1-9) -->
+      <div class="card">
+        <h3>藥盤狀態 (1-9 號藥格)</h3>
+        <div class="slots-grid" id="slotsContainer">
+          <!-- JS 自動繪製 9 個藥格 -->
+        </div>
+      </div>
+
+      <!-- 本月日曆與服藥紀錄統計 -->
+      <div class="card">
+        <div class="calendar-header" id="calendarMonthTitle">本月日曆</div>
+        <div class="calendar-grid" id="calendarGrid">
+          <!-- JS 自動繪製日曆 -->
+        </div>
+      </div>
+
+      <!-- 使用者個人資料 -->
+      <div class="card">
+        <h3>使用者個人資料</h3>
+        <div id="profile-display" class="profile-grid">
+          <div class="profile-item"><div class="profile-label">姓名</div><span id="disp-name">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">性別</div><span id="disp-gender">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">生日</div><span id="disp-birth">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">年齡</div><span id="disp-age">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">血型</div><span id="disp-blood">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">身高</div><span id="disp-height">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">體重</div><span id="disp-weight">未設定</span></div>
+          <div class="profile-item"><div class="profile-label">BMI</div><span id="disp-bmi">未設定</span></div>
+          <div class="profile-item" style="grid-column: span 2;"><div class="profile-label">MBTI</div><span id="disp-mbti">未提供</span></div>
+        </div>
+      </div>
+
+      <!-- 藍芽連線狀態卡片 -->
+      <div class="card">
+        <h3>裝置連線狀態</h3>
+        <p>連線狀態：<span id="bleStatus" style="color:red; font-weight:bold;">未連線</span></p>
+        <button id="btnConnect" onclick="connectBLE()">連結藍芽裝置</button>
+      </div>
+    </div>
+
+    <!-- 2. 設定/修改個資頁面 -->
+    <div id="page-profile-edit" class="section-page">
+      <div class="card">
+        <h3>設定個人資料</h3>
+        <form id="profileForm" onsubmit="saveProfile(event)">
+          <div class="form-group">
+            <label>姓名</label>
+            <input type="text" id="input-name" required>
+          </div>
+          <div class="form-group">
+            <label>性別</label>
+            <select id="input-gender">
+              <option value="男">男</option>
+              <option value="女">女</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>生日</label>
+            <input type="date" id="input-birth" required>
+          </div>
+          <div class="form-group">
+            <label>血型</label>
+            <select id="input-blood">
+              <option value="A型">A型</option>
+              <option value="B型">B型</option>
+              <option value="O型">O型</option>
+              <option value="AB型">AB型</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>身高 (cm)</label>
+            <input type="number" step="0.1" id="input-height" required>
+          </div>
+          <div class="form-group">
+            <label>體重 (kg)</label>
+            <input type="number" step="0.1" id="input-weight" required>
+          </div>
+          <div class="form-group">
+            <label>MBTI (選填)</label>
+            <input type="text" id="input-mbti" placeholder="例如：ENTJ">
+          </div>
+          <button type="submit">儲存個人資料</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 3. 設定用藥提醒時間 -->
+    <div id="page-alarm" class="section-page">
+      <div class="card">
+        <h3>用藥時間設定</h3>
+        <div class="form-group">
+          <label>提醒時間</label>
+          <input type="time" id="alarmTime" value="08:00">
+        </div>
+        <button onclick="setAlarm()">發送設定至藥盒</button>
+      </div>
+    </div>
+
+    <!-- 4. 水杯開關控制 -->
+    <div id="page-cup" class="section-page">
+      <div class="card">
+        <h3>水杯控制與密碼設定</h3>
+        <div class="form-group">
+          <label>開關密碼</label>
+          <input type="password" id="passCode" placeholder="請輸入密碼">
+        </div>
+        <button onclick="controlCup('OPEN')">開啟水杯 (MT1)</button>
+        <button onclick="controlCup('CLOSE')">關閉水杯 (MT1)</button>
+      </div>
+    </div>
+
+    <!-- 5. 歷史用藥紀錄 -->
+    <div id="page-logs" class="section-page">
+      <div class="card">
+        <h3>歷史服藥紀錄</h3>
+        <div id="logList">暫無紀錄</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // 全域變數
+    let isDeviceEnabled = false;
+    // 預設 9 個藥格狀態 (true: 有藥/綠色待投藥, false: 沒藥/紅色已投藥)
+    let pillSlots = [true, true, true, true, true, true, true, true, true];
+    // 已完成用藥的日期列表 (日期格式: "YYYY-MM-DD")
+    let completedDates = [];
+
+    // ----------------- 功能 1: 設備啟用狀態與切換控制 -----------------
+    function toggleDeviceState() {
+      const checkbox = document.getElementById('deviceEnableSwitch');
+      isDeviceEnabled = checkbox.checked;
+      const statusText = document.getElementById('deviceStatusText');
+      
+      if (isDeviceEnabled) {
+        statusText.innerText = "目前狀態：設備已開啟啟用";
+        statusText.style.color = "#28a745";
+        sendData("DEV_ENABLE:1");
+      } else {
+        statusText.innerText = "目前狀態：未開啟使用";
+        statusText.style.color = "#666";
+        sendData("DEV_ENABLE:0");
+      }
+    }
+
+    // ----------------- 功能 2: 渲染 9 格藥格狀態 -----------------
+    function renderSlots() {
+      const container = document.getElementById('slotsContainer');
+      container.innerHTML = '';
+      
+      pillSlots.forEach((hasPill, index) => {
+        const div = document.createElement('div');
+        div.className = `slot-item ${hasPill ? 'slot-green' : 'slot-red'}`;
+        div.innerText = `${index + 1}號格\n${hasPill ? '綠色:待投藥' : '紅色:已投藥'}`;
+        container.appendChild(div);
+      });
+    }
+
+    // ----------------- 功能 3: 本月日曆渲染與 👍 標誌顯示 -----------------
+    function renderCalendar() {
+      const calendarGrid = document.getElementById('calendarGrid');
+      const calendarTitle = document.getElementById('calendarMonthTitle');
+      calendarGrid.innerHTML = '';
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+
+      calendarTitle.innerText = `${year} 年 ${month + 1} 月服藥日曆`;
+
+      // 星期標題
+      const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+      weekDays.forEach(day => {
+        const div = document.createElement('div');
+        div.className = 'day-name';
+        div.innerText = day;
+        calendarGrid.appendChild(div);
+      });
+
+      // 當月第一天是星期幾 & 當月總天數
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // 填補月初空白格
+      for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'day-cell';
+        emptyCell.style.border = 'none';
+        calendarGrid.appendChild(emptyCell);
+      }
+
+      // 繪製日期
+      for (let day = 1; day <= daysInMonth; day++) {
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+
+        // 格式化當天日期字串 YYYY-MM-DD
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // 標記今日
+        if (day === now.getDate()) {
+          cell.classList.add('today');
+        }
+
+        let content = `<span>${day}</span>`;
+        
+        // 若該日有完全服藥紀錄，顯示讚符號
+        if (completedDates.includes(dateStr)) {
+          content += `<span class="thumbs-up">👍</span>`;
+        }
+
+        cell.innerHTML = content;
+        calendarGrid.appendChild(cell);
+      }
+    }
+
+    // ----------------- 功能 4: 右上角 MENU 與頁面切換 -----------------
+    function toggleMenu() {
+      document.getElementById("myDropdown").classList.toggle("show");
+    }
+
+    window.onclick = function(event) {
+      if (!event.target.matches('.dropbtn')) {
+        var dropdowns = document.getElementsByClassName("dropdown-content");
+        for (var i = 0; i < dropdowns.length; i++) {
+          var openDropdown = dropdowns[i];
+          if (openDropdown.classList.contains('show')) {
+            openDropdown.classList.remove('show');
+          }
+        }
+      }
+    }
+
+    function showPage(pageId) {
+      const pages = document.querySelectorAll('.section-page');
+      pages.forEach(page => page.classList.remove('active-page'));
+      document.getElementById(pageId).classList.add('active-page');
+    }
+
+    // ----------------- 功能 5: 個人資料儲存與自動計算 -----------------
+    function saveProfile(e) {
+      e.preventDefault();
+      
+      const profileData = {
+        name: document.getElementById('input-name').value,
+        gender: document.getElementById('input-gender').value,
+        birth: document.getElementById('input-birth').value,
+        blood: document.getElementById('input-blood').value,
+        height: parseFloat(document.getElementById('input-height').value),
+        weight: parseFloat(document.getElementById('input-weight').value),
+        mbti: document.getElementById('input-mbti').value.trim() || "未提供"
+      };
+
+      localStorage.setItem('user_profile', JSON.stringify(profileData));
+      loadProfile();
+      alert("個人資料已成功更新！");
+      showPage('page-home');
+    }
+
+    function loadProfile() {
+      const savedData = localStorage.getItem('user_profile');
+      if (!savedData) return;
+
+      const p = JSON.parse(savedData);
+
+      document.getElementById('input-name').value = p.name;
+      document.getElementById('input-gender').value = p.gender;
+      document.getElementById('input-birth').value = p.birth;
+      document.getElementById('input-blood').value = p.blood;
+      document.getElementById('input-height').value = p.height;
+      document.getElementById('input-weight').value = p.weight;
+      document.getElementById('input-mbti').value = p.mbti === "未提供" ? "" : p.mbti;
+
+      // 計算年齡
+      const birthDate = new Date(p.birth);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
+      // 計算 BMI
+      const heightInMeters = p.height / 100;
+      const bmi = (p.weight / (heightInMeters * heightInMeters)).toFixed(1);
+
+      document.getElementById('disp-name').innerText = p.name;
+      document.getElementById('disp-gender').innerText = p.gender;
+      document.getElementById('disp-birth').innerText = p.birth;
+      document.getElementById('disp-age').innerText = age + " 歲";
+      document.getElementById('disp-blood').innerText = p.blood;
+      document.getElementById('disp-height').innerText = p.height + " cm";
+      document.getElementById('disp-weight').innerText = p.weight + " kg";
+      document.getElementById('disp-bmi').innerText = p.bmi = bmi;
+      document.getElementById('disp-mbti').innerText = p.mbti;
+    }
+
+    // 初始化頁面
+    window.onload = function() {
+      loadProfile();
+      renderSlots();
+      renderCalendar();
+    };
+
+    // ----------------- 功能 6: 藍芽通訊與時間設定檢查 -----------------
+    let bleDevice, gattServer, rxCharacteristic, txCharacteristic;
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const RX_UUID      = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    const TX_UUID      = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
+
+    async function connectBLE() {
+      try {
+        document.getElementById('bleStatus').innerText = "搜尋中...";
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Smart pill box智慧藥盒' }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        gattServer = await bleDevice.gatt.connect();
+        const service = await gattServer.getService(SERVICE_UUID);
+        rxCharacteristic = await service.getCharacteristic(RX_UUID);
+        txCharacteristic = await service.getCharacteristic(TX_UUID);
+
+        await txCharacteristic.startNotifications();
+        txCharacteristic.addEventListener('characteristicvaluechanged', handleBLEData);
+
+        document.getElementById('bleStatus').innerText = "已連線";
+        document.getElementById('bleStatus').style.color = "green";
+      } catch (err) {
+        console.error(err);
+        document.getElementById('bleStatus').innerText = "連線失敗";
+        document.getElementById('bleStatus').style.color = "red";
+      }
+    }
+
+    function sendData(str) {
+      if (!rxCharacteristic) return;
+      const encoder = new TextEncoder();
+      rxCharacteristic.writeValue(encoder.encode(str + "\n"));
+    }
+
+    // 設定用藥提醒 (包含啟用狀態檢查)
+    function setAlarm() {
+      if (!isDeviceEnabled) {
+        alert("提示：請先在首頁開啟「設備啟用狀態」開關後再設定提醒時間！");
+        showPage('page-home');
+        return;
+      }
+
+      const timeVal = document.getElementById('alarmTime').value;
+      sendData("SET_ALARM:" + timeVal);
+      alert("提醒時間設定成功：" + timeVal);
+    }
+
+    function controlCup(action) {
+      const pwd = document.getElementById('passCode').value;
+      if (!pwd) return alert("請輸入水杯控制密碼");
+      sendData(`CUP_CTRL:${action}:${pwd}`);
+    }
+
+    // 接收 ESP32 數據並動態更新藥格狀態與日曆
+    function handleBLEData(event) {
+      const decoder = new TextDecoder('utf-8');
+      const msg = decoder.decode(event.target.value).trim();
+      
+      // ESP32 回傳藥格狀態 (例如 SLOT_STATUS:1,0,1,1,1,1,1,1,1)
+      if (msg.startsWith("SLOT_STATUS:")) {
+        const statuses = msg.replace("SLOT_STATUS:", "").split(",");
+        pillSlots = statuses.map(s => s === "1");
+        renderSlots();
+      } 
+      // 服藥成功紀錄
+      else if (msg.startsWith("LOG:")) {
+        const logText = msg.replace("LOG:", "");
+        addLog(logText, false);
+        
+        // 成功服藥時，將今天日期標記為已完成，並在日曆上顯示 👍
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (!completedDates.includes(todayStr)) {
+          completedDates.push(todayStr);
+          renderCalendar();
+        }
+      } 
+      else if (msg.startsWith("LOG_ALERT:")) {
+        addLog(msg.replace("LOG_ALERT:", ""), true);
+      } 
+      else if (msg.startsWith("NOTIFY:")) {
+        alert("藥盒系統通知：" + msg.replace("NOTIFY:", ""));
+      }
+    }
+
+    function addLog(text, isAlert) {
+      const logList = document.getElementById('logList');
+      if (logList.innerText === "暫無紀錄") logList.innerHTML = "";
+      const div = document.createElement('div');
+      div.className = 'log-item' + (isAlert ? ' log-alert' : '');
+      const now = new Date().toLocaleString();
+      div.innerText = `[${now}] ${text}`;
+      logList.insertBefore(div, logList.firstChild);
+    }
+  </script>
+</body>
+</html>
