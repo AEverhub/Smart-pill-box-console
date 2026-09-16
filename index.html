@@ -308,7 +308,6 @@
 
       localStorage.setItem('alarm_times', JSON.stringify(timesArr));
 
-      // 傳送格式範例：SET_ALARMS:2026-04-20T08:00,2026-04-20T09:00,...
       const payload = "SET_ALARMS:" + timesArr.join(",");
       sendData(payload);
       alert("已成功發送 9 組用藥日期與時間至藥盒，並儲存於本地！");
@@ -445,7 +444,6 @@
       renderSlots();
       renderAlarmInputs();
       renderCalendar();
-      autoConnectBLE();
     };
 
     let bleDevice, gattServer, rxCharacteristic, txCharacteristic;
@@ -467,14 +465,14 @@
 
       document.getElementById('bleStatus').innerText = "已連線";
       document.getElementById('bleStatus').style.color = "green";
-      localStorage.setItem('auto_connect_ble', 'true');
     }
 
     async function connectBLE() {
       try {
         document.getElementById('bleStatus').innerText = "搜尋中...";
+        // 修正點：改用 service UUID 過濾，避開中文名稱比對失敗的問題
         const device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'Smart pill box智慧藥盒' }],
+          filters: [{ services: [SERVICE_UUID] }],
           optionalServices: [SERVICE_UUID]
         });
         await setupGATT(device);
@@ -482,23 +480,6 @@
         console.error(err);
         document.getElementById('bleStatus').innerText = "連線失敗";
         document.getElementById('bleStatus').style.color = "red";
-      }
-    }
-
-    async function autoConnectBLE() {
-      if (localStorage.getItem('auto_connect_ble') === 'true' && navigator.bluetooth.getDevices) {
-        try {
-          const devices = await navigator.bluetooth.getDevices();
-          const targetDevice = devices.find(d => d.name === 'Smart pill box智慧藥盒');
-          if (targetDevice) {
-            document.getElementById('bleStatus').innerText = "自動連線中...";
-            await setupGATT(targetDevice);
-          }
-        } catch (err) {
-          console.error("自動連線失敗:", err);
-          document.getElementById('bleStatus').innerText = "未連線";
-          document.getElementById('bleStatus').style.color = "red";
-        }
       }
     }
 
@@ -562,7 +543,8 @@
       }
       logList.innerHTML = "";
       logsArr.forEach(item => {
-        const div = document.className = 'log-item' + (item.isAlert ? ' log-alert' : '');
+        const div = document.createElement('div');
+        div.className = 'log-item' + (item.isAlert ? ' log-alert' : '');
         div.innerText = `[${item.time}] ${item.text}`;
         logList.appendChild(div);
       });
