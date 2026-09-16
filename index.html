@@ -1,554 +1,98 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Pill Box 智慧藥盒控制台</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 15px; background: #f4f6f9; color: #333; margin: 0; }
-    
-    .header { display: flex; justify-content: space-between; align-items: center; background: #007bff; color: white; padding: 10px 20px; }
-    .header h1 { font-size: 18px; margin: 0; }
-    .dropdown { position: relative; display: inline-block; }
-    .dropbtn { background-color: #0056b3; color: white; padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
-    .dropdown-content { display: none; position: absolute; right: 0; background-color: #ffffff; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 10; border-radius: 4px; overflow: hidden; }
-    .dropdown-content a { color: black; padding: 12px 16px; text-decoration: none; display: block; font-size: 14px; }
-    .dropdown-content a:hover { background-color: #f1f1f1; }
-    .show { display: block; }
-
-    .container { padding: 15px; max-width: 800px; margin: 0 auto; }
-    .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .card-highlight { border: 2px solid #007bff; }
-    h2, h3 { margin-top: 0; color: #007bff; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-    
-    .switch-container { display: flex; align-items: center; justify-content: space-between; }
-    .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 26px; }
-    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-    input:checked + .slider { background-color: #28a745; }
-    input:checked + .slider:before { transform: translateX(24px); }
-
-    .slots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-    .slot-item { border-radius: 6px; padding: 15px 5px; text-align: center; color: white; font-weight: bold; font-size: 13px; }
-    .slot-green { background-color: #28a745; }
-    .slot-red { background-color: #dc3545; }
-
-    .alarm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
-
-    .calendar-header { text-align: center; font-weight: bold; margin-bottom: 10px; }
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 12px; }
-    .day-name { font-weight: bold; background: #e9ecef; padding: 5px 0; border-radius: 3px; }
-    .day-cell { padding: 8px 2px; border: 1px solid #eee; border-radius: 4px; min-height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .today { border: 2px solid #007bff; font-weight: bold; }
-    .thumbs-up { color: #28a745; font-size: 14px; margin-top: 2px; }
-
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 14px; margin-bottom: 4px; }
-    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-    button { padding: 10px 15px; border: none; border-radius: 4px; background: #007bff; color: white; font-size: 14px; cursor: pointer; margin-top: 5px; }
-    button:hover { background: #0056b3; }
-    .btn-danger { background-color: #dc3545; }
-    .btn-danger:hover { background-color: #bd2130; }
-    
-    .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
-    .profile-item { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; }
-    .profile-label { color: #666; font-size: 12px; }
-
-    .log-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 13px; }
-    .log-alert { color: #dc3545; font-weight: bold; }
-    .section-page { display: none; }
-    .active-page { display: block; }
-  </style>
-</head>
-<body>
-
-  <div class="header">
-    <h1>智慧藥盒管理系統</h1>
-    <div class="dropdown">
-      <button class="dropbtn" onclick="toggleMenu()">MENU選單</button>
-      <div id="myDropdown" class="dropdown-content">
-        <a href="#" onclick="showPage('page-home')">首頁控制台</a>
-        <a href="#" onclick="showPage('page-profile-edit')">修改個人資料</a>
-        <a href="#" onclick="showPage('page-alarm')">設定用藥提醒 (9組)</a>
-        <a href="#" onclick="showPage('page-logs')">歷史用藥紀錄</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="container">
-
-    <div id="page-home" class="section-page active-page">
-      
-      <div class="card card-highlight">
-        <h3>裝置連線狀態</h3>
-        <p style="margin: 5px 0 10px 0;">連線狀態：<span id="bleStatus" style="color:red; font-weight:bold;">未連線</span></p>
-        <button id="btnConnect" onclick="connectBLE()" style="width: 100%;">連結藍芽裝置</button>
-      </div>
-
-      <div class="card">
-        <div class="switch-container">
-          <span style="font-weight: bold; font-size: 15px;">設備啟用狀態</span>
-          <label class="switch">
-            <input type="checkbox" id="deviceEnableSwitch" onchange="toggleDeviceState()">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <p id="deviceStatusText" style="margin: 8px 0 0 0; font-size: 13px; color: #666;">目前狀態：未開啟使用</p>
-      </div>
-
-      <div class="card">
-        <h3>水杯控制</h3>
-        <div style="display: flex; gap: 10px;">
-          <button onclick="controlCup('LOCK')" style="flex: 1;">水杯上鎖 (MT1)</button>
-          <button onclick="controlCup('UNLOCK')" class="btn-danger" style="flex: 1;">水杯解鎖 (MT1)</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>藥盤狀態 (1-9 號藥格)</h3>
-        <div class="slots-grid" id="slotsContainer"></div>
-      </div>
-
-      <div class="card">
-        <div class="calendar-header" id="calendarMonthTitle">本月日曆</div>
-        <div class="calendar-grid" id="calendarGrid"></div>
-      </div>
-
-      <div class="card">
-        <h3>使用者個人資料</h3>
-        <div id="profile-display" class="profile-grid">
-          <div class="profile-item"><div class="profile-label">姓名</div><span id="disp-name">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">性別</div><span id="disp-gender">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">生日</div><span id="disp-birth">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">年齡</div><span id="disp-age">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">血型</div><span id="disp-blood">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">身高</div><span id="disp-height">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">體重</div><span id="disp-weight">未設定</span></div>
-          <div class="profile-item"><div class="profile-label">BMI</div><span id="disp-bmi">未設定</span></div>
-          <div class="profile-item" style="grid-column: span 2;"><div class="profile-label">MBTI</div><span id="disp-mbti">未提供</span></div>
-        </div>
-      </div>
-
-    </div>
-
-    <div id="page-profile-edit" class="section-page">
-      <div class="card">
-        <h3>設定個人資料</h3>
-        <form id="profileForm" onsubmit="saveProfile(event)">
-          <div class="form-group">
-            <label>姓名</label>
-            <input type="text" id="input-name" required>
-          </div>
-          <div class="form-group">
-            <label>性別</label>
-            <select id="input-gender">
-              <option value="男">男</option>
-              <option value="女">女</option>
-              <option value="其他">其他</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>生日</label>
-            <input type="date" id="input-birth" required>
-          </div>
-          <div class="form-group">
-            <label>血型</label>
-            <select id="input-blood">
-              <option value="A型">A型</option>
-              <option value="B型">B型</option>
-              <option value="O型">O型</option>
-              <option value="AB型">AB型</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>身高 (cm)</label>
-            <input type="number" step="0.1" id="input-height" required>
-          </div>
-          <div class="form-group">
-            <label>體重 (kg)</label>
-            <input type="number" step="0.1" id="input-weight" required>
-          </div>
-          <div class="form-group">
-            <label>MBTI (選填)</label>
-            <input type="text" id="input-mbti" placeholder="例如：ENTJ">
-          </div>
-          <button type="submit">儲存個人資料</button>
-        </form>
-      </div>
-    </div>
-
-    <div id="page-alarm" class="section-page">
-      <div class="card">
-        <h3>用藥時間設定 (9個藥格 - 日期與時間)</h3>
-        <div class="alarm-grid" id="alarmGrid"></div>
-        <button onclick="setAlarms()" style="width: 100%; margin-top: 15px;">發送 9 組日期時間至藥盒</button>
-      </div>
-    </div>
-
-    <div id="page-logs" class="section-page">
-      <div class="card">
-        <h3>歷史用藥紀錄</h3>
-        <div id="logList">暫無紀錄</div>
-      </div>
-    </div>
-
-  </div>
-
-  <script>
-    let isDeviceEnabled = false;
-    let pillSlots = [true, true, true, true, true, true, true, true, true];
-    let completedDates = [];
-    let logsArr = [];
-
-    function loadSavedSettings() {
-      const savedEnable = localStorage.getItem('device_enabled');
-      if (savedEnable !== null) {
-        isDeviceEnabled = (savedEnable === 'true');
-        const checkbox = document.getElementById('deviceEnableSwitch');
-        checkbox.checked = isDeviceEnabled;
-        updateDeviceStatusUI();
-      }
-
-      const savedDates = localStorage.getItem('completed_dates');
-      if (savedDates) {
-        completedDates = JSON.parse(savedDates);
-      }
-
-      const savedLogs = localStorage.getItem('system_logs');
-      if (savedLogs) {
-        logsArr = JSON.parse(savedLogs);
-        renderLogs();
-      }
-    }
-
-    function toggleDeviceState() {
-      const checkbox = document.getElementById('deviceEnableSwitch');
-      isDeviceEnabled = checkbox.checked;
-      localStorage.setItem('device_enabled', isDeviceEnabled);
-      
-      updateDeviceStatusUI();
-
-      if (isDeviceEnabled) {
-        sendData("DEV_ENABLE:1");
-      } else {
-        sendData("DEV_ENABLE:0");
-      }
-    }
-
-    function updateDeviceStatusUI() {
-      const statusText = document.getElementById('deviceStatusText');
-      if (isDeviceEnabled) {
-        statusText.innerText = "目前狀態：設備已開啟啟用";
-        statusText.style.color = "#28a745";
-      } else {
-        statusText.innerText = "目前狀態：未開啟使用";
-        statusText.style.color = "#666";
-      }
-    }
-
-    function renderSlots() {
-      const container = document.getElementById('slotsContainer');
-      container.innerHTML = '';
-      
-      pillSlots.forEach((hasPill, index) => {
-        const div = document.createElement('div');
-        div.className = `slot-item ${hasPill ? 'slot-green' : 'slot-red'}`;
-        div.innerText = `${index + 1}號格\n${hasPill ? '綠色:待投藥' : '紅色:已投藥'}`;
-        container.appendChild(div);
-      });
-    }
-
-    function renderAlarmInputs() {
-      const alarmGrid = document.getElementById('alarmGrid');
-      alarmGrid.innerHTML = '';
-      
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const todayPrefix = `${year}-${month}-${day}T`;
-
-      const defaultTimes = [
-        todayPrefix + "08:00", todayPrefix + "09:00", todayPrefix + "12:00",
-        todayPrefix + "13:00", todayPrefix + "17:00", todayPrefix + "18:00",
-        todayPrefix + "20:00", todayPrefix + "21:00", todayPrefix + "22:00"
-      ];
-      
-      const savedTimes = JSON.parse(localStorage.getItem('alarm_times') || 'null');
-
-      for (let i = 1; i <= 9; i++) {
-        const val = (savedTimes && savedTimes[i - 1]) ? savedTimes[i - 1] : defaultTimes[i - 1];
-        const div = document.createElement('div');
-        div.className = 'form-group';
-        div.innerHTML = `
-          <label>${i}號藥格 日期與時間</label>
-          <input type="datetime-local" id="alarmTime_${i}" value="${val}">
-        `;
-        alarmGrid.appendChild(div);
-      }
-    }
-
-    function setAlarms() {
-      if (!isDeviceEnabled) {
-        alert("提示：請先在首頁開啟「設備啟用狀態」開關後再設定提醒時間！");
-        showPage('page-home');
-        return;
-      }
-
-      let timesArr = [];
-      for (let i = 1; i <= 9; i++) {
-        const timeVal = document.getElementById(`alarmTime_${i}`).value;
-        if (!timeVal) {
-          alert(`請填寫第 ${i} 號藥格的完整的日期與時間！`);
-          return;
-        }
-        timesArr.push(timeVal);
-      }
-
-      localStorage.setItem('alarm_times', JSON.stringify(timesArr));
-
-      const payload = "SET_ALARMS:" + timesArr.join(",");
-      sendData(payload);
-      alert("已成功發送 9 組用藥日期與時間至藥盒，並儲存於本地！");
-    }
-
-    function renderCalendar() {
-      const calendarGrid = document.getElementById('calendarGrid');
-      const calendarTitle = document.getElementById('calendarMonthTitle');
-      calendarGrid.innerHTML = '';
-
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-
-      calendarTitle.innerText = `${year} 年 ${month + 1} 月服藥日曆`;
-
-      const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-      weekDays.forEach(day => {
-        const div = document.createElement('div');
-        div.className = 'day-name';
-        div.innerText = day;
-        calendarGrid.appendChild(div);
-      });
-
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-      for (let i = 0; i < firstDay; i++) {
-        const emptyCell = document.createElement('div');
-        emptyCell.className = 'day-cell';
-        emptyCell.style.border = 'none';
-        calendarGrid.appendChild(emptyCell);
-      }
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const cell = document.createElement('div');
-        cell.className = 'day-cell';
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-        if (day === now.getDate()) {
-          cell.classList.add('today');
-        }
-
-        let content = `<span>${day}</span>`;
-        if (completedDates.includes(dateStr)) {
-          content += `<span class="thumbs-up">👍</span>`;
-        }
-
-        cell.innerHTML = content;
-        calendarGrid.appendChild(cell);
-      }
-    }
-
-    function toggleMenu() {
-      document.getElementById("myDropdown").classList.toggle("show");
-    }
-
-    window.onclick = function(event) {
-      if (!event.target.matches('.dropbtn')) {
-        var dropdowns = document.getElementsByClassName("dropdown-content");
-        for (var i = 0; i < dropdowns.length; i++) {
-          var openDropdown = dropdowns[i];
-          if (openDropdown.classList.contains('show')) {
-            openDropdown.classList.remove('show');
-          }
-        }
-      }
-    }
-
-    function showPage(pageId) {
-      const pages = document.querySelectorAll('.section-page');
-      pages.forEach(page => page.classList.remove('active-page'));
-      document.getElementById(pageId).classList.add('active-page');
-    }
-
-    function saveProfile(e) {
-      e.preventDefault();
-      
-      const profileData = {
-        name: document.getElementById('input-name').value,
-        gender: document.getElementById('input-gender').value,
-        birth: document.getElementById('input-birth').value,
-        blood: document.getElementById('input-blood').value,
-        height: parseFloat(document.getElementById('input-height').value),
-        weight: parseFloat(document.getElementById('input-weight').value),
-        mbti: document.getElementById('input-mbti').value.trim() || "未提供"
-      };
-
-      localStorage.setItem('user_profile', JSON.stringify(profileData));
-      loadProfile();
-      alert("個人資料已成功更新！");
-      showPage('page-home');
-    }
-
-    function loadProfile() {
-      const savedData = localStorage.getItem('user_profile');
-      if (!savedData) return;
-
-      const p = JSON.parse(savedData);
-
-      document.getElementById('input-name').value = p.name;
-      document.getElementById('input-gender').value = p.gender;
-      document.getElementById('input-birth').value = p.birth;
-      document.getElementById('input-blood').value = p.blood;
-      document.getElementById('input-height').value = p.height;
-      document.getElementById('input-weight').value = p.weight;
-      document.getElementById('input-mbti').value = p.mbti === "未提供" ? "" : p.mbti;
-
-      const birthDate = new Date(p.birth);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-
-      const heightInMeters = p.height / 100;
-      const bmi = (p.weight / (heightInMeters * heightInMeters)).toFixed(1);
-
-      document.getElementById('disp-name').innerText = p.name;
-      document.getElementById('disp-gender').innerText = p.gender;
-      document.getElementById('disp-birth').innerText = p.birth;
-      document.getElementById('disp-age').innerText = age + " 歲";
-      document.getElementById('disp-blood').innerText = p.blood;
-      document.getElementById('disp-height').innerText = p.height + " cm";
-      document.getElementById('disp-weight').innerText = p.weight + " kg";
-      document.getElementById('disp-bmi').innerText = bmi;
-      document.getElementById('disp-mbti').innerText = p.mbti;
-    }
-
-    window.onload = function() {
-      loadSavedSettings();
-      loadProfile();
-      renderSlots();
-      renderAlarmInputs();
-      renderCalendar();
-    };
-
-    let bleDevice, gattServer, rxCharacteristic, txCharacteristic;
-    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-    const RX_UUID      = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-    const TX_UUID      = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
-
-    async function setupGATT(device) {
-      bleDevice = device;
-      bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
-      gattServer = await bleDevice.gatt.connect();
-      const service = await gattServer.getService(SERVICE_UUID);
-      rxCharacteristic = await service.getCharacteristic(RX_UUID);
-      txCharacteristic = await service.getCharacteristic(TX_UUID);
-
-      await txCharacteristic.startNotifications();
-      txCharacteristic.addEventListener('characteristicvaluechanged', handleBLEData);
-
-      document.getElementById('bleStatus').innerText = "已連線";
-      document.getElementById('bleStatus').style.color = "green";
-    }
-
-    async function connectBLE() {
-      try {
-        document.getElementById('bleStatus').innerText = "搜尋中...";
-        // 修正點：改用 service UUID 過濾，避開中文名稱比對失敗的問題
-        const device = await navigator.bluetooth.requestDevice({
-          filters: [{ services: [SERVICE_UUID] }],
-          optionalServices: [SERVICE_UUID]
-        });
-        await setupGATT(device);
-      } catch (err) {
-        console.error(err);
-        document.getElementById('bleStatus').innerText = "連線失敗";
-        document.getElementById('bleStatus').style.color = "red";
-      }
-    }
-
-    function onDisconnected() {
-      document.getElementById('bleStatus').innerText = "已斷線";
-      document.getElementById('bleStatus').style.color = "red";
-    }
-
-    function sendData(str) {
-      if (!rxCharacteristic) return;
-      const encoder = new TextEncoder();
-      rxCharacteristic.writeValue(encoder.encode(str + "\n"));
-    }
-
-    function controlCup(action) {
-      sendData(`CUP_CTRL:${action}`);
-      alert(`已發送水杯${action === 'LOCK' ? '上鎖' : '解鎖'}指令`);
-    }
-
-    function handleBLEData(event) {
-      const decoder = new TextDecoder('utf-8');
-      const msg = decoder.decode(event.target.value).trim();
-      
-      if (msg.startsWith("SLOT_STATUS:")) {
-        const statuses = msg.replace("SLOT_STATUS:", "").split(",");
-        pillSlots = statuses.map(s => s === "1");
-        renderSlots();
-      } 
-      else if (msg.startsWith("LOG:")) {
-        const logText = msg.replace("LOG:", "");
-        addLog(logText, false);
+import bluetooth
+import time
+from machine import Pin
+from micropython import const
+
+_IRQ_CENTRAL_CONNECT = const(1)
+_IRQ_CENTRAL_DISCONNECT = const(2)
+_IRQ_GATTS_WRITE = const(3)
+
+SERVICE_UUID = bluetooth.UUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
+RX_UUID = bluetooth.UUID("beb5483e-36e1-4688-b7f5-ea07361b26a8")
+TX_UUID = bluetooth.UUID("1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e")
+
+_FLAG_WRITE = const(0x0008)
+_FLAG_NOTIFY = const(0x0010)
+
+UART_SERVICE = (
+    SERVICE_UUID,
+    (
+        (RX_UUID, _FLAG_WRITE),
+        (TX_UUID, _FLAG_NOTIFY),
+    ),
+)
+
+class ESP32PillBox:
+    def __init__(self):
+        self.ble = bluetooth.BLE()
+        self.ble.active(True)
+        self.ble.irq(self._irq)
         
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (!completedDates.includes(todayStr)) {
-          completedDates.push(todayStr);
-          localStorage.setItem('completed_dates', JSON.stringify(completedDates));
-          renderCalendar();
-        }
-      } 
-      else if (msg.startsWith("LOG_ALERT:")) {
-        addLog(msg.replace("LOG_ALERT:", ""), true);
-      } 
-      else if (msg.startsWith("NOTIFY:")) {
-        alert("藥盒系統通知：" + msg.replace("NOTIFY:", ""));
-      }
-    }
+        ((self.handle_rx, self.handle_tx),) = self.ble.gatts_register_services((UART_SERVICE,))
+        self.connections = set()
+        
+        self.cup_motor = Pin(25, Pin.OUT, value=1)
+        self.slot_pins = [Pin(pin_num, Pin.IN, Pin.PULL_UP) for pin_num in [18, 19, 23, 26, 27, 5, 21, 32, 15]]
+        
+        self.device_enabled = False
+        self.alarm_times = [""] * 9
+        
+        self._advertise()
 
-    function addLog(text, isAlert) {
-      const now = new Date().toLocaleString();
-      const logObj = { time: now, text: text, isAlert: isAlert };
-      logsArr.unshift(logObj);
-      localStorage.setItem('system_logs', JSON.stringify(logsArr));
-      renderLogs();
-    }
+    def _irq(self, event, data):
+        if event == _IRQ_CENTRAL_CONNECT:
+            conn_handle, _, _ = data
+            self.connections.add(conn_handle)
 
-    function renderLogs() {
-      const logList = document.getElementById('logList');
-      if (logsArr.length === 0) {
-        logList.innerText = "暫無紀錄";
-        return;
-      }
-      logList.innerHTML = "";
-      logsArr.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'log-item' + (item.isAlert ? ' log-alert' : '');
-        div.innerText = `[${item.time}] ${item.text}`;
-        logList.appendChild(div);
-      });
-    }
-  </script>
-</body>
-</html>
+        elif event == _IRQ_CENTRAL_DISCONNECT:
+            conn_handle, _, _ = data
+            self.connections.remove(conn_handle)
+            self._advertise()
+
+        elif event == _IRQ_GATTS_WRITE:
+            conn_handle, value_handle = data
+            if value_handle == self.handle_rx:
+                rx_bytes = self.ble.gatts_read(self.handle_rx)
+                msg = rx_bytes.decode('utf-8').strip()
+                self.process_command(msg)
+
+    def process_command(self, msg):
+        if msg.startswith("DEV_ENABLE:"):
+            state = msg.split(":")[1]
+            self.device_enabled = (state == "1")
+            
+        elif msg.startswith("CUP_CTRL:"):
+            action = msg.split(":")[1]
+            if action == "LOCK":
+                self.cup_motor.value(1)
+            elif action == "UNLOCK":
+                self.cup_motor.value(0)
+                
+        elif msg.startswith("SET_ALARMS:"):
+            raw_times = msg.replace("SET_ALARMS:", "").split(",")
+            if len(raw_times) == 9:
+                self.alarm_times = raw_times
+
+    def send_notify(self, text):
+        for conn_handle in self.connections:
+            self.ble.gatts_notify(conn_handle, self.handle_tx, text + "\n")
+
+    def _advertise(self):
+        name = b'Smart pill box'
+        # 修正：在廣播資料中夾帶完整 Service UUID (Little-endian)，解決 Web Bluetooth 搜尋不到裝置的問題，同時保留英文名稱
+        adv_data = bytearray(b'\x02\x01\x06') + \
+                   bytearray(b'\x11\x07\x4b\x91\xc9\xc5\xfc\x8f\x9e\x45\xb5\x1f\x01\xc2\xaf\x4f') + \
+                   bytearray([len(name) + 1, 0x09]) + name
+        self.ble.gap_advertise(100000, adv_data=adv_data)
+
+    def run(self):
+        while True:
+            if self.connections and self.device_enabled:
+                statuses = [str(pin.value()) for pin in self.slot_pins]
+                status_str = "SLOT_STATUS:" + ",".join(statuses)
+                self.send_notify(status_str)
+            time.sleep(2)
+
+if __name__ == "__main__":
+    box = ESP32PillBox()
+    box.run()
