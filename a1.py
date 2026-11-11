@@ -93,3 +93,73 @@ class ESP32PillBox:
 if __name__ == "__main__":
     box = ESP32PillBox()
     box.run()
+
+
+
+
+////////////////////
+
+
+
+from machine import ADC, Pin
+import time
+
+# ===== 腳位設定 =====
+PIR_PIN = 23      # 人體紅外線
+LED_PIN = 21      # 動作指示燈
+BUZZ_PIN = 32     # 有源蜂鳴器（Low 才響）
+TDS_PIN = 34      # TDS 類比訊號（請依實際接線修改）
+
+# ===== 參數 =====
+TDS_LIMIT = 150   # ppm，低於此值視為清澈，可自行調整
+TEMPERATURE = 25.0
+VREF = 3.3
+
+pir = Pin(PIR_PIN, Pin.IN)
+led = Pin(LED_PIN, Pin.OUT, value=0)
+buzz = Pin(BUZZ_PIN, Pin.OUT, value=1)   # 開機先設 High = 不響
+
+adc = ADC(Pin(TDS_PIN))
+adc.atten(ADC.ATTN_11DB)
+adc.width(ADC.WIDTH_12BIT)
+
+
+def read_tds(samples=15):
+    vals = []
+    for _ in range(samples):
+        vals.append(adc.read())
+        time.sleep_ms(5)
+    vals.sort()
+    v = vals[len(vals) // 2] / 4095 * VREF
+    v = v / (1.0 + 0.02 * (TEMPERATURE - 25.0))
+    return (133.42 * v**3 - 255.86 * v**2 + 857.39 * v) * 0.5
+
+
+def alarm(on):
+    led.value(1 if on else 0)
+    buzz.value(0 if on else 1)   # Low 才動作
+
+
+last_tds_time = 0
+clear = True
+
+while True:
+    if not pir.value():
+        alarm(False)             # 沒人：完全不動作
+        time.sleep_ms(100)
+        continue
+
+    # 有人：每秒更新一次水質
+    now = time.ticks_ms()
+    if time.ticks_diff(now, last_tds_time) >= 1000:
+        tds = read_tds()
+        clear = tds <= TDS_LIMIT
+        last_tds_time = now
+        print("TDS: {:.0f} ppm -> {}".format(tds, "清澈" if clear else "異常"))
+
+    if clear:
+        alarm(True)              # 長鳴 + 常亮
+    else:
+        alarm((time.ticks_ms() // 1000) % 2 == 0)   # 響1秒、停1秒
+
+    time.sleep_ms(50)
